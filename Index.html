@@ -1,1 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>English Bird Game - Mobile</title>
+    <style>
+        /* ESTILOS - ya incluidos en el código anterior */
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to bottom, #87CEEB, #1E90FF);
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+        }
+        
+        #question {
+            font-size: 18px;
+            margin-bottom: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 10px;
+            margin: 10px;
+        }
+        
+        #lives {
+            font-size: 24px;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+        }
+        
+        #score {
+            font-size: 20px;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        #flapButton {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 20px 40px;
+            font-size: 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+        }
+        
+        .level-line {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: rgba(255,255,255,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="ui">
+            <div id="question">What is the color of the sky?</div>
+        </div>
+        <div id="lives">♥♥♥</div>
+        <div id="score">Score: 0</div>
+        
+        <div class="level-line" style="top: 33.3%;"></div>
+        <div class="level-line" style="top: 66.6%;"></div>
+        
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="controls">
+            <button id="flapButton">TAP TO FLY</button>
+        </div>
+        
+        <div id="gameOver">
+            <h2 id="gameOverTitle">GAME OVER</h2>
+            <p id="gameOverMessage">Wrong answer!</p>
+            <p id="finalScore">Score: 0</p>
+            <button onclick="restartGame()">PLAY AGAIN</button>
+        </div>
+    </div>
 
+    <script>
+        // Configuración del juego
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const questionEl = document.getElementById('question');
+        const livesEl = document.getElementById('lives');
+        const scoreEl = document.getElementById('score');
+        const flapButton = document.getElementById('flapButton');
+        const gameOverScreen = document.getElementById('gameOver');
+        const gameOverTitle = document.getElementById('gameOverTitle');
+        const gameOverMessage = document.getElementById('gameOverMessage');
+        const finalScore = document.getElementById('finalScore');
+
+        // Ajustar tamaño del canvas
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Preguntas y respuestas
+        const questions = [
+            {
+                question: "What is the color of the sky?",
+                options: ["Blue", "Red", "Green"],
+                correct: 0
+            },
+            {
+                question: "How do you say 'hola' in English?",
+                options: ["Goodbye", "Hello", "Please"],
+                correct: 1
+            },
+            {
+                question: "What is 5 + 3?",
+                options: ["Seven", "Eight", "Nine"],
+                correct: 1
+            },
+            {
+                question: "Which animal says 'meow'?",
+                options: ["Dog", "Cat", "Bird"],
+                correct: 1
+            },
+            {
+                question: "What do you drink when you are thirsty?",
+                options: ["Food", "Water", "Air"],
+                correct: 1
+            },
+            {
+                question: "What is the opposite of 'hot'?",
+                options: ["Cold", "Warm", "Big"],
+                correct: 0
+            },
+            {
+                question: "How many days are in a week?",
+                options: ["Five", "Six", "Seven"],
+                correct: 2
+            },
+            {
+                question: "Which is a fruit?",
+                options: ["Carrot", "Apple", "Potato"],
+                correct: 1
+            },
+            {
+                question: "What do you use to write on paper?",
+                options: ["Eraser", "Pencil", "Book"],
+                correct: 1
+            },
+            {
+                question: "What time is 'noon'?",
+                options: ["12:00 AM", "12:00 PM", "6:00 PM"],
+                correct: 1
+            }
+        ];
+
+        // Variables del juego
+        let bird = {
+            x: 100,
+            y: canvas.height / 2,
+            radius: 20,
+            velocity: 0,
+            gravity: 0.5,
+            jump: -10,
+            currentLevel: 1, // 0=arriba, 1=medio, 2=abajo
+            color: '#4CAF50'
+        };
+
+        let game = {
+            running: true,
+            score: 0,
+            lives: 3,
+            currentQuestion: 0,
+            levelHeights: [
+                canvas.height * 0.166,  // Nivel 0 (arriba)
+                canvas.height * 0.5,    // Nivel 1 (medio)
+                canvas.height * 0.833   // Nivel 2 (abajo)
+            ]
+        };
+
+        // Opciones de respuesta
+        let options = [];
+
+        // Partículas de explosión
+        let explosionParticles = [];
+
+        // Inicializar opciones
+        function initializeOptions() {
+            options = [];
+            const question = questions[game.currentQuestion];
+            const levelHeight = canvas.height / 3;
+            
+            question.options.forEach((option, index) => {
+                options.push({
+                    text: option,
+                    x: canvas.width - 100,
+                    y: game.levelHeights[index],
+                    width: 80,
+                    height: 40,
+                    isCorrect: index === question.correct,
+                    color: index === question.correct ? '#4CAF50' : '#FF5252'
+                });
+            });
+        }
+
+        // Dibujar el pájaro
+        function drawBird() {
+            ctx.save();
+            
+            // Cuerpo del pájaro
+            ctx.fillStyle = bird.color;
+            ctx.beginPath();
+            ctx.arc(bird.x, bird.y, bird.radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Ojo
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(bird.x + 8, bird.y - 5, 6, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(bird.x + 10, bird.y - 5, 3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Pico
+            ctx.fillStyle = '#FF9800';
+            ctx.beginPath();
+            ctx.moveTo(bird.x + 15, bird.y);
+            ctx.lineTo(bird.x + 30, bird.y - 5);
+            ctx.lineTo(bird.x + 30, bird.y + 5);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+        // Dibujar opciones
+        function drawOptions() {
+            options.forEach(option => {
+                ctx.save();
+                
+                // Fondo de la opción
+                ctx.fillStyle = option.color;
+                ctx.globalAlpha = 0.3;
+                ctx.fillRect(option.x - option.width/2, option.y - option.height/2, option.width, option.height);
+                
+                // Texto
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = 'white';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(option.text, option.x, option.y);
+                
+                ctx.restore();
+            });
+        }
+
+        // Dibujar partículas de explosión
+        function drawExplosion() {
+            explosionParticles.forEach(particle => {
+                ctx.save();
+                ctx.globalAlpha = particle.alpha;
+                ctx.fillStyle = particle.color;
+                ctx.beginPath();
+                ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+        }
+
+        // Crear explosión
+        function createExplosion(x, y) {
+            const colors = ['#FF5252', '#FF9800', '#FFEB3B', '#FFFFFF'];
+            for (let i = 0; i < 20; i++) {
+                explosionParticles.push({
+                    x: x,
+                    y: y,
+                    size: Math.random() * 8 + 2,
+                    speedX: (Math.random() - 0.5) * 10,
+                    speedY: (Math.random() - 0.5) * 10,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    alpha: 1,
+                    decay: 0.02
+                });
+            }
+        }
+
+        // Actualizar partículas
+        function updateExplosion() {
+            for (let i = explosionParticles.length - 1; i >= 0; i--) {
+                const particle = explosionParticles[i];
+                particle.x += particle.speedX;
+                particle.y += particle.speedY;
+                particle.alpha -= particle.decay;
+                
+                if (particle.alpha <= 0) {
+                    explosionParticles.splice(i, 1);
+                }
+            }
+        }
+
+        // Verificar colisiones
+        function checkCollisions() {
+            const birdRect = {
+                x: bird.x - bird.radius,
+                y: bird.y - bird.radius,
+                width: bird.radius * 2,
+                height: bird.radius * 2
+            };
+
+            for (let option of options) {
+                const optionRect = {
+                    x: option.x - option.width/2,
+                    y: option.y - option.height/2,
+                    width: option.width,
+                    height: option.height
+                };
+
+                if (birdRect.x < optionRect.x + optionRect.width &&
+                    birdRect.x + birdRect.width > optionRect.x &&
+                    birdRect.y < optionRect.y + optionRect.height &&
+                    birdRect.y + birdRect.height > optionRect.y) {
+                    
+                    if (option.isCorrect) {
+                        // Respuesta correcta
+                        game.score += 10;
+                        game.currentQuestion = (game.currentQuestion + 1) % questions.length;
+                        initializeOptions();
+                        updateUI();
+                    } else {
+                        // Respuesta incorrecta - EXPLOSIÓN
+                        createExplosion(bird.x, bird.y);
+                        game.lives--;
+                        updateUI();
+                        
+                        if (game.lives <= 0) {
+                            gameOver();
+                        } else {
+                            // Reiniciar posición del pájaro
+                            resetBird();
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Reiniciar pájaro
+        function resetBird() {
+            bird.y = game.levelHeights[bird.currentLevel];
+            bird.velocity = 0;
+        }
+
+        // Actualizar física
+        function updatePhysics() {
+            if (!game.running) return;
+
+            // Aplicar gravedad
+            bird.velocity += bird.gravity;
+            bird.y += bird.velocity;
+
+            // Limitar al nivel seleccionado (no caer del nivel)
+            const targetY = game.levelHeights[bird.currentLevel];
+            const margin = 50; // Margen de movimiento dentro del nivel
+            
+            if (Math.abs(bird.y - targetY) > margin) {
+                bird.velocity += (targetY - bird.y) * 0.1;
+            }
+
+            // Limitar velocidad vertical
+            bird.velocity = Math.max(-15, Math.min(15, bird.velocity));
+
+            checkCollisions();
+            updateExplosion();
+        }
+
+        // Hacer que el pájaro vuele
+        function flap() {
+            if (game.running) {
+                bird.velocity = bird.jump;
+            }
+        }
+
+        // Cambiar nivel
+        function changeLevel(newLevel) {
+            bird.currentLevel = newLevel;
+        }
+
+        // Actualizar UI
+        function updateUI() {
+            questionEl.textContent = questions[game.currentQuestion].question;
+            livesEl.textContent = '♥'.repeat(game.lives);
+            scoreEl.textContent = `Score: ${game.score}`;
+        }
+
+        // Game Over
+        function gameOver() {
+            game.running = false;
+            gameOverTitle.textContent = 'GAME OVER';
+            gameOverMessage.textContent = 'Wrong answer!';
+            finalScore.textContent = `Final Score: ${game.score}`;
+            gameOverScreen.style.display = 'block';
+        }
+
+        // Reiniciar juego
+        function restartGame() {
+            game.running = true;
+            game.score = 0;
+            game.lives = 3;
+            game.currentQuestion = 0;
+            gameOverScreen.style.display = 'none';
+            explosionParticles = [];
+            initializeOptions();
+            resetBird();
+            updateUI();
+        }
+
+        // Bucle principal
+        function gameLoop() {
+            // Limpiar canvas
+            ctx.fillStyle = 'rgba(135, 206, 235, 0.3)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Dibujar niveles
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 2;
+            game.levelHeights.forEach(height => {
+                ctx.beginPath();
+                ctx.moveTo(0, height);
+                ctx.lineTo(canvas.width, height);
+                ctx.stroke();
+            });
+
+            updatePhysics();
+            drawOptions();
+            drawExplosion();
+            drawBird();
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Event listeners
+        flapButton.addEventListener('click', flap);
+        flapButton.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            flap();
+        });
+
+        // Controles táctiles para cambiar nivel
+        canvas.addEventListener('touchstart', function(e) {
+            if (!game.running) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const touchY = e.touches[0].clientY - rect.top;
+            const levelHeight = canvas.height / 3;
+            
+            if (touchY < levelHeight) {
+                changeLevel(0); // Nivel superior
+            } else if (touchY < levelHeight * 2) {
+                changeLevel(1); // Nivel medio
+            } else {
+                changeLevel(2); // Nivel inferior
+            }
+        });
+
+        // Inicializar juego
+        initializeOptions();
+        updateUI();
+        gameLoop();
+    </script>
+</body>
+  </html>
